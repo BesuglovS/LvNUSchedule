@@ -8,7 +8,9 @@ use App\DomainClasses\Calendar;
 use App\DomainClasses\ConfigOption;
 use App\DomainClasses\Discipline;
 use App\DomainClasses\Discipline_Teacher;
+use App\DomainClasses\Exam;
 use App\DomainClasses\Faculty;
+use App\DomainClasses\Faculty_Student_Group;
 use App\DomainClasses\Lesson;
 use App\DomainClasses\LessonLogEvent;
 use App\DomainClasses\Ring;
@@ -16,6 +18,7 @@ use App\DomainClasses\Student;
 use App\DomainClasses\Student_Student_Group;
 use App\DomainClasses\StudentGroup;
 use App\DomainClasses\Teacher;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -289,7 +292,7 @@ class ApiController extends Controller
 
                 $query  = "CREATE TABLE IF NOT EXISTS " . $dbPrefix . "discipline_teacher ( " .
                     "`id` INT NOT NULL AUTO_INCREMENT, " .
-                    "`teacher_Id` INT NOT NULL, " .
+                    "`teacher_id` INT NOT NULL, " .
                     "`discipline_id` INT NOT NULL, " .
                     "PRIMARY KEY  (`id`)" .
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
@@ -585,8 +588,10 @@ class ApiController extends Controller
             ($action == "groupExams") ||
             ($action == "weekSchedule") ||
             ($action == "groupSchedule") ||
-            ($action == "TeacherWeekSchedule") ||
-            ($action == "TeacherSchedule")
+            ($action == "teacherWeekSchedule") ||
+            ($action == "teacherSchedule") ||
+            // Site requests
+            ($action == "mainPageData")
         ))
         {
             return array("error" => "Неизвестное действие (action)");
@@ -603,15 +608,15 @@ class ApiController extends Controller
                 $bundle["rings"] = Ring::all();
                 $bundle["students"] = Student::all();
                 $bundle["studentGroups"] = StudentGroup::all();
-                $bundle["studentsInGroups"] = "Oops";
+                $bundle["studentsInGroups"] = Student_Student_Group::all();
                 $bundle["teachers"] = Teacher::all();
-                $bundle["teacherForDisciplines"] = "Oops";
+                $bundle["teacherForDisciplines"] = Discipline_Teacher::all();
 
                 $bundle["configOptions"] = ConfigOption::all();
                 $bundle["lessonLogEvents"] = LessonLogEvent::all();
 
                 $bundle["faculties"] = Faculty::all();
-                $bundle["groupsInFaculties"] = "Oops";
+                $bundle["groupsInFaculties"] = Faculty_Student_Group::all();
 
                 return $bundle;
                 break;
@@ -619,7 +624,7 @@ class ApiController extends Controller
                 $bundle = array();
                 $bundle["studentGroups"] = StudentGroup::all();
                 $bundle["faculties"] = Faculty::all();
-                $bundle["groupsInFaculties"] = "Oops";
+                $bundle["groupsInFaculties"] = Faculty_Student_Group::all();
 
                 return $bundle;
                 break;
@@ -649,13 +654,20 @@ class ApiController extends Controller
                     case "lessonLogEvents":         return LessonLogEvent::all();
                     case "faculties":               return Faculty::all();
                     case "buildings":               return Building::all();
+                    case "groupsInFaculties":       return Faculty_Student_Group::all();
                 }
                 break;
             case "dailySchedule":           return $this->DailySchedule($input);
             case "weekSchedule":            return $this->WeekSchedule($input);
             case "groupExams":              return $this->GroupExams($input);
-            case "TeacherWeekSchedule":     return $this->TeacherWeekSchedule($input);
+            case "teacherWeekSchedule":     return $this->TeacherWeekSchedule($input);
+            case "teacherSchedule":         return $this->TeacherSchedule($input);
+
+            // Site requests
+            case "mainPageData":             return $this->MainPageData($input);
         }
+
+        return array("error" => "Whoops, looks like something went wrong :-)");
     }
 
     private function DailySchedule($input) {
@@ -675,14 +687,294 @@ class ApiController extends Controller
     }
 
     private function WeekSchedule($input) {
-        return "";
+        if ((!isset($input['groupId'])) || (!isset($input['week'])))
+        {
+            return array("error" => "groupId и week обязательные параметры");
+        }
+
+        $groupId = $input["groupId"];
+        $week = $input["week"];
+
+        $groupDisciplineIds = Discipline::IdsFromGroupId($groupId);
+        $disciplineTeacherIds = Discipline_Teacher::IdsFromDisciplineIds($groupDisciplineIds);
+        $lessons = Lesson::GetWeekTFDLessons($disciplineTeacherIds, $week);
+
+        return $lessons;
     }
 
     private function GroupExams($input) {
-        return "";
+        if (!isset($input['groupId']))
+        {
+            return array("error" => "groupId обязательный параметр");
+        }
+
+        $groupId = $input["groupId"];
+
+        return Exam::FromGroupId($groupId);
     }
 
     private function TeacherWeekSchedule($input) {
-        return "";
+        if ((!isset($input['teacherId'])) || (!isset($input['week'])))
+        {
+            return array("error" => "teacherId и week обязательные параметры");
+        }
+
+        $teacherId = $input["teacherId"];
+        $week = $input["week"];
+
+        $tfdIds = Discipline_Teacher::IdsFromTeacherId($teacherId);
+        $lessons = Lesson::GetWeekTFDLessons($tfdIds, $week);
+
+        return $lessons;
+    }
+
+    private function TeacherSchedule($input)
+    {
+        $dowLocal = array(
+            1 => "Понедельник",
+            2 => "Вторник",
+            3 => "Среда",
+            4 => "Четверг",
+            5 => "Пятница",
+            6 => "Суббота",
+            7 => "Воскресенье"
+        );
+
+        if (!isset($input['teacherId']))
+        {
+            return array("error" => "teacherId обязательный параметр");
+        }
+
+        $teacherId = $input["teacherId"];
+
+        $tfdIds = Discipline_Teacher::IdsFromTeacherId($teacherId);
+        $lessons = Lesson::GetTFDLessonsQuery($tfdIds)
+            ->orderBy('rings.time')
+            ->get();
+
+        $result = array();
+
+        $lessons->map(function ($lesson) use (&$result, $dowLocal) {
+
+            $dt = Carbon::createFromFormat('Y-m-d', $lesson->date);
+            $dow = $dt->dayOfWeek;
+            $dow = ($dow == 0) ? 7 : $dow;
+            $lesson->dow = $dow;
+
+            $lesson->time = substr($lesson->time, 0, 5);
+
+            if (!array_key_exists($dow, $result)) {
+                $result[$dow] = array();
+                $result[$dow]["dow"] = $dow;
+                $result[$dow]["dowString"] = $dowLocal[$dow];
+                $result[$dow]["dowLessons"] = array();
+            }
+
+            if (!array_key_exists($lesson->time, $result[$dow]["dowLessons"])) {
+                $result[$dow]["dowLessons"][$lesson->time] = array();
+                $result[$dow]["dowLessons"][$lesson->time]["time"] = $lesson->time;
+                $result[$dow]["dowLessons"][$lesson->time]["dowTimeLessons"] = array();
+            }
+
+            if (!array_key_exists($lesson->tfd_id, $result[$dow]["dowLessons"][$lesson->time]["dowTimeLessons"])) {
+                $result[$dow]["dowLessons"][$lesson->time]["dowTimeLessons"][$lesson->tfd_id] = array();
+                $result[$dow]["dowLessons"][$lesson->time]["dowTimeLessons"][$lesson->tfd_id]["tfdId"] = $lesson->tfd_id;
+                $result[$dow]["dowLessons"][$lesson->time]["dowTimeLessons"][$lesson->tfd_id]["tfdIdDowTimeLessons"] = array();
+            }
+
+            $result[$dow]["dowLessons"][$lesson->time]["dowTimeLessons"][$lesson->tfd_id]["tfdIdDowTimeLessons"][] = $lesson;
+
+        });
+
+        foreach($result as $dow => $dowLessons)
+        {
+            foreach($dowLessons["dowLessons"] as $time => $dowTimeLessons)
+            {
+                foreach($dowTimeLessons["dowTimeLessons"] as $tfdId => $TfdIdDowTimeLessons)
+                {
+                    $weeks = array();
+                    $aud = array();
+
+                    foreach ($TfdIdDowTimeLessons["tfdIdDowTimeLessons"] as $lesson)
+                    {
+                        $week = Calendar::GetWeekNumber($lesson->date);
+                        $weeks[] = $week;
+
+                        if (!array_key_exists($lesson->aud_name, $aud)) {
+                            $aud[$lesson->aud_name] = array();
+                            $aud[$lesson->aud_name]["weeks"] = array();
+                        }
+
+                        $aud[$lesson->aud_name]["weeks"][] = $week;
+                    }
+
+                    $audArray = array();
+
+                    if (count($aud) == 1)
+                    {
+                        foreach($aud as $audName => $audData) {
+                            $audArray[] = $audName;
+                        }
+                    }
+                    else {
+                        foreach($aud as $audName => $audData) {
+                            $audArray[] = static::GatherWeeksToString($aud[$audName]["weeks"]) . " - " . $audName;
+                        }
+                    }
+
+                    $weeksString = static::GatherWeeksToString($weeks);
+                    $result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]['weeksString'] = $weeksString;
+                    $result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]['auditoriums'] = $audArray;
+
+                    $result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]['minWeek'] = min($weeks);
+                    $result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]['lesson'] = array();
+                    $result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]['lesson']['disc_name'] = $result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]["tfdIdDowTimeLessons"][0]->disc_name;
+                    $result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]['lesson']['group_name'] = $result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]["tfdIdDowTimeLessons"][0]->group_name;
+
+                    unset($result[$dow]["dowLessons"][$time]["dowTimeLessons"][$tfdId]["tfdIdDowTimeLessons"]);
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    public static function GatherWeeksToString($weekArray)
+    {
+        $result = array();
+        $boolWeeks = array();
+        for($i=0; $i<=25;$i++) {
+            $boolWeeks[$i] = false;
+        }
+        foreach ($weekArray as $week) {
+            $boolWeeks[$week] = true;
+        }
+
+        $prev = false;
+        $baseNum = 25;
+        for($i = 0; $i<=25; $i++)
+        {
+            if (($prev == false) && ($boolWeeks[$i] == true))
+            {
+                $baseNum = $i;
+            }
+
+            if (($boolWeeks[$i] == false) && (($i - $baseNum) > 2))
+            {
+                $result[] = $baseNum .  "-" . ($i - 1);
+
+                for ($k = $baseNum; $k < $i; $k++)
+                {
+                    $boolWeeks[$k] = false;
+                }
+            }
+
+            if ($boolWeeks[$i] == false)
+                $baseNum = 25;
+
+            $prev = $boolWeeks[$i];
+        }
+
+        $prev = false;
+        $baseNum = 25;
+        for($i = 1; $i<=25; $i = $i + 2)
+        {
+            if (($prev == false) && ($boolWeeks[$i] == true))
+            {
+                $baseNum = $i;
+            }
+
+            if (($boolWeeks[$i] == false) && (($i - $baseNum) > 4))
+            {
+                $result[] = $baseNum .  "-" . ($i - 2) . " (нечёт.)";
+
+                for ($k = $baseNum; $k < $i; $k = $k + 2)
+                {
+                    $boolWeeks[$k] = false;
+                }
+            }
+
+            if ($boolWeeks[$i] == false)
+                $baseNum = 25;
+
+            $prev = $boolWeeks[$i];
+        }
+
+        $prev = false;
+        $baseNum = 25;
+        for($i = 2; $i<=25; $i = $i + 2)
+        {
+            if (($prev == false) && ($boolWeeks[$i] == true))
+            {
+                $baseNum = $i;
+            }
+
+            if (($boolWeeks[$i] == false) && (($i - $baseNum) > 4))
+            {
+                $result[] = $baseNum .  "-" . ($i - 2) . " (чёт.)";
+
+                for ($k = $baseNum; $k < $i; $k = $k + 2)
+                {
+                    $boolWeeks[$k] = false;
+                }
+            }
+
+            if ($boolWeeks[$i] == false)
+                $baseNum = 25;
+
+            $prev = $boolWeeks[$i];
+        }
+
+
+
+        for ($i = 1; $i <= 25; $i++)
+        {
+            if ($boolWeeks[$i])
+            {
+                $result[] = $i;
+            }
+        }
+
+        uasort($result, array('App\Http\Controllers\ApiController','weeksCompare'));
+
+        return implode(", ", $result);
+    }
+
+    public static function weeksCompare($a, $b)
+    {
+        $dash = "-";
+        $pos = mb_strpos($a,$dash);
+        if ($pos !== false)
+        {
+            $a = mb_substr($a, 0, $pos);
+        }
+
+        $pos = mb_strpos($b,$dash);
+        if ($pos !== false)
+        {
+            $b = mb_substr($b, 0, $pos);
+        }
+
+        if ($a > $b)
+        {
+            return 1;
+        }
+        elseif ($a < $b)
+        {
+            return -1;
+        }
+
+        return 0;
+    }
+
+    private function MainPageData($input)
+    {
+        $result = array();
+
+        $result["currentWeek"] = Calendar::GetWeekNumber();
+        $result["mainGroups"] = StudentGroup::mainStudentGroups();
+        $result["teacherList"] = Teacher::IdAndFioList();
+
+        return $result;
     }
 }

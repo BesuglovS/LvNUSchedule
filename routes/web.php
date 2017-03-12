@@ -16,3 +16,6 @@ Route::get('/', function () {
 })->name('index');
 
 Route::get('brb', 'BigRedButton@index')->name('bigredbutton');
+
+Route::get('/api.php', 'OldApiController@api')
+    ->name('api.old');

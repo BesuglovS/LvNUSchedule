@@ -3,6 +3,7 @@
 namespace App\DomainClasses;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Teacher extends Model
 {
@@ -11,5 +12,20 @@ class Teacher extends Model
     public function disciplines()
     {
         return $this->belongsToMany(Discipline::class, 'discipline_teacher')->using('App\DomainClasses\Discipline_TeacherPivot');
+    }
+
+    public static function OrderByFio()
+    {
+        return DB::table('teachers')
+            ->orderBy('fio', 'asc')
+            ->get();
+    }
+
+    public static function IdAndFioList()
+    {
+        return DB::table('teachers')
+            ->select('id', 'fio')
+            ->orderBy('fio', 'asc')
+            ->get();
     }
 }

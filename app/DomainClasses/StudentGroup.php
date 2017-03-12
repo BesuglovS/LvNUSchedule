@@ -7,6 +7,17 @@ use Illuminate\Support\Facades\DB;
 
 class StudentGroup extends Model
 {
+    public static function NameFromId($groupId)
+    {
+        $name = $studentIds = DB::table('student_groups')
+            ->where('id', '=', $groupId)
+            ->select('name')
+            ->get()
+            ->map(function($item) { return $item->name;});
+
+        return (count($name) > 0) ? $name[0] : "";
+    }
+
     public function disciplines()
     {
         return $this->hasMany(Discipline::class);

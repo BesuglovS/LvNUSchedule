@@ -26,5 +26,6 @@ Route::get('/docs', 'ApiController@index')
 Route::post('/import.php', 'ApiController@import')
     ->name('api.import');
 
-Route::get('/api.php', 'ApiController@api')
-    ->name('api.import');
+Route::get('/api', 'ApiController@api')
+    ->name('api.api');
+
