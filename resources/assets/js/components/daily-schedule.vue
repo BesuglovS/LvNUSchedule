@@ -13,9 +13,10 @@
                     </td>
                 </tr>
                 <tr>
-                    <td id="calendarId">
+                    <td id="calendarId" >
                         <input type="text"
                                id="scheduleDate"
+                               v-on:click="showsimplemodal();"
                                v-model="dateformatted"
                                readonly>
                     </td>
@@ -35,17 +36,6 @@
                         </div>
                     </td>
                 </tr>
-                <tr>
-                    <td colspan="2">
-                        <datepicker language = "ru"
-                                    id="dailydatepicker"
-                                    :inline="true"
-                                    :monday-first = "true"
-                                    format = "dd.MM.yyyy"
-                                    v-model = "date">
-                        </datepicker>
-                    </td>
-                </tr>
             </table>
         </div>
 
@@ -53,8 +43,14 @@
         <daily-schedule-modal v-if="showModalResult"
                :lessons="lessons"
                :selectedGroup="selectedGroup"
+               :dateformatted="dateformatted"
                @close="showModalResult = false">
         </daily-schedule-modal>
+
+        <modal v-if="showSimpleModal"
+               @close="showSimpleModal = false">
+            <h3>Дату можно выбрать слева</h3>
+        </modal>
     </div>
 </template>
 
@@ -64,34 +60,32 @@
     moment.locale('ru');
 
     export default {
-        mounted() {
-            this.date = new Date();
-        },
-        props: ['mainGroups'],
+        props: ['mainGroups', 'datepickerDate'],
         computed: {
             dateformatted: function () {
-                var dt = moment(this.date);
+                var dt = moment(this.datepickerDate);
                 return dt.format('DD MMMM YYYY г.');
             }
         },
         data: function () {
             return {
                 lessons: null,
-                date: null,
                 selectedGroup: null,
-                showModalResult: false
+                showModalResult: false,
+                showSimpleModal: false
             }
         },
         components: {
             Datepicker,
-            "daily-schedule-modal": require('./daily-schedule-modal.vue')
+            "daily-schedule-modal": require('./daily-schedule-modal.vue'),
+            "modal": require('./modal.vue')
         },
         methods: {
             groupChosen (group) {
                 this.selectedGroup = group;
             },
             showSchedule() {
-                var dt = moment(this.date);
+                var dt = moment(this.datepickerDate);
                 var dateString = dt.format('YYYY-MM-DD');
                 axios.get('/api/api?action=dailySchedule&groupId=' +
                     this.selectedGroup.id + '&date=' + dateString)
@@ -100,6 +94,9 @@
                         this.showModalResult = true;
                     }
                 );
+            },
+            showsimplemodal() {
+                this.showSimpleModal = true;
             }
         }
     }

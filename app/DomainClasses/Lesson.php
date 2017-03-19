@@ -7,6 +7,31 @@ use Illuminate\Support\Facades\DB;
 
 class Lesson extends Model
 {
+    public static function GetDailyBuildingLessons($calendarId, $buildingId)
+    {
+        $result = DB::table('lessons')
+            ->where('calendar_id', '=', $calendarId)
+            ->where('auditoriums.building_id', '=', $buildingId)
+            ->where('state', '=', 1)
+            ->join('discipline_teacher as tfd', 'discipline_teacher_id', '=', 'tfd.id')
+            ->join('disciplines', 'tfd.discipline_id', '=', 'disciplines.id')
+            ->join('teachers', 'teacher_id', '=', 'teachers.id')
+            ->join('student_groups', 'student_group_id', '=', 'student_groups.id')
+            ->join('rings', 'ring_id', '=', 'rings.id')
+            ->join('auditoriums', 'auditorium_id', '=', 'auditoriums.id')
+            ->select('lessons.id', 'rings.time', 'disciplines.name as disc_name',
+                'teachers.fio', 'auditoriums.name as aud_name',
+                'student_groups.name as group_name')
+            ->orderBy('rings.time')
+            ->get();
+
+        $result->map(function ($lesson) {
+            $lesson->time = substr($lesson->time, 0, 5);
+        });
+
+        return $result;
+    }
+
     public static function GetDailyTFDLessons($disciplineTeacherIds, $calendarId)
     {
         $result = DB::table('lessons')

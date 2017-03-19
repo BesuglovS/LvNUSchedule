@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\DomainClasses\Auditorium;
+use App\DomainClasses\AuditoriumEvent;
 use App\DomainClasses\Building;
 use App\DomainClasses\Calendar;
 use App\DomainClasses\ConfigOption;
@@ -590,6 +591,9 @@ class ApiController extends Controller
             ($action == "groupSchedule") ||
             ($action == "teacherWeekSchedule") ||
             ($action == "teacherSchedule") ||
+            ($action == "dailyBuildingSchedule") ||
+            ($action == "dailyBuildingLessons") ||
+            ($action == "dailyBuildingAuditoriumEvents") ||
             // Site requests
             ($action == "mainPageData")
         ))
@@ -657,11 +661,14 @@ class ApiController extends Controller
                     case "groupsInFaculties":       return Faculty_Student_Group::all();
                 }
                 break;
-            case "dailySchedule":           return $this->DailySchedule($input);
-            case "weekSchedule":            return $this->WeekSchedule($input);
-            case "groupExams":              return $this->GroupExams($input);
-            case "teacherWeekSchedule":     return $this->TeacherWeekSchedule($input);
-            case "teacherSchedule":         return $this->TeacherSchedule($input);
+            case "dailySchedule":                   return $this->DailySchedule($input);
+            case "weekSchedule":                    return $this->WeekSchedule($input);
+            case "groupExams":                      return $this->GroupExams($input);
+            case "teacherWeekSchedule":             return $this->TeacherWeekSchedule($input);
+            case "teacherSchedule":                 return $this->TeacherSchedule($input);
+            case "dailyBuildingSchedule":           return $this->DailyBuildingSchedule($input);
+            case "dailyBuildingLessons":            return $this->DailyBuildingLessons($input);
+            case "dailyBuildingAuditoriumEvents":   return $this->DailyBuildingAuditoriumEvents($input);
 
             // Site requests
             case "mainPageData":             return $this->MainPageData($input);
@@ -974,7 +981,130 @@ class ApiController extends Controller
         $result["currentWeek"] = Calendar::GetWeekNumber();
         $result["mainGroups"] = StudentGroup::mainStudentGroups();
         $result["teacherList"] = Teacher::IdAndFioList();
+        $result["buildingsList"] = Building::all();
 
         return $result;
+    }
+
+    private function DailyBuildingSchedule($input)
+    {
+        if ((!isset($input['buildingId'])) || (!isset($input['calendarId'])))
+        {
+            return array("error" => "buildingId и calendarId обязательные параметры");
+        }
+
+        $calendarId = $input["calendarId"];
+        $buildingId = $input["buildingId"];
+
+        $result = array();
+        $result["table"] = array();
+
+        $lessonList = Lesson::GetDailyBuildingLessons($calendarId, $buildingId);
+
+        $timeArray = array();
+        $audArray = array();
+
+        foreach ($lessonList as $lesson)
+        {
+            if (!array_key_exists($lesson->time, $result["table"])) {
+                $result["table"][$lesson->time] = array();
+            }
+
+            if (!array_key_exists($lesson->aud_name, $result["table"][$lesson->time])) {
+                $result["table"][$lesson->time][$lesson->aud_name] = array();
+            }
+
+            $timeArray[] = $lesson->time;
+            $audArray[] = $lesson->aud_name;
+
+            $time = $lesson->time;
+            unset($lesson->time);
+
+            $aud = $lesson->aud_name;
+            unset($lesson->aud_name);
+
+            $lessonData = array();
+            $lessonData["text"] = $lesson->group_name;
+            $lessonData["title"] = $lesson->disc_name . "@" . $lesson->fio;
+
+            $result["table"][$time][$aud][] = $lessonData;
+        }
+
+        $events = AuditoriumEvent::GetDailyBuildingAuditoriumEvents($calendarId, $buildingId);
+
+        foreach ($events as $event)
+        {
+            if (!array_key_exists($event->time, $result["table"])) {
+                $result["table"][$event->time] = array();
+            }
+
+            if (!array_key_exists($event->aud_name, $result["table"][$event->time])) {
+                $result["table"][$event->time][$event->aud_name] = array();
+            }
+
+            $eventData = array();
+            if (strpos($event->name, '@') !== false) {
+                $eventSplit = explode(" ", $event->name);
+                if (count($eventSplit) > 1)
+                {
+                    $eventData["text"] = $eventSplit[0];
+                    $eventData["title"] = $eventSplit[1];
+                }
+                else
+                {
+                    $eventData["text"] = $event->name;
+                    $eventData["title"] = "";
+                }
+            } else {
+                $eventData["text"] = $event->name;
+                $eventData["title"] = "";
+            }
+
+            $audArray[] = $event->aud_name;
+
+            $result["table"][$event->time][$event->aud_name][] = $eventData;
+        }
+
+        $audArray = array_values(array_unique($audArray));
+        sort($audArray);
+        $result["audArray"] = $audArray;
+
+        foreach ($result["table"] as $time => $timeLessons)
+        {
+            foreach ($audArray as $aud)
+            {
+                if (!array_key_exists($aud, $result["table"][$time])) {
+                    $result["table"][$time][$aud] = array();
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    private function DailyBuildingLessons($input)
+    {
+        if ((!isset($input['buildingId'])) || (!isset($input['calendarId'])))
+        {
+            return array("error" => "buildingId и calendarId обязательные параметры");
+        }
+
+        $calendarId = $input["calendarId"];
+        $buildingId = $input["buildingId"];
+
+        return Lesson::GetDailyBuildingLessons($calendarId, $buildingId);
+    }
+
+    private function DailyBuildingAuditoriumEvents($input)
+    {
+        if ((!isset($input['buildingId'])) || (!isset($input['calendarId'])))
+        {
+            return array("error" => "buildingId и calendarId обязательные параметры");
+        }
+
+        $calendarId = $input["calendarId"];
+        $buildingId = $input["buildingId"];
+
+        return AuditoriumEvent::GetDailyBuildingAuditoriumEvents($calendarId, $buildingId);
     }
 }

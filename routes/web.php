@@ -11,11 +11,15 @@
 |
 */
 
-Route::get('/', function () {
-    return view('index');
-})->name('index');
+Route::get('/', "HomeController@index");
 
 Route::get('brb', 'BigRedButton@index')->name('bigredbutton');
 
 Route::get('/api.php', 'OldApiController@api')
     ->name('api.old');
+
+//Route::get('/FlatIndex.php', function () {
+//    return redirect('/');
+//});
+
+Auth::routes();
