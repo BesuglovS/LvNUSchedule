@@ -1,5 +1,13 @@
 <template>
     <div class="col-xs-12 col-sm-6">
+        <table id="happyTable">
+            <tr>
+                <td colspan="2" style="text-align: center;">
+                    <img style="margin-top: 20px; margin-bottom: 20px" height="64px"  src="http://wiki.nayanova.edu/upload/images/cake.png">
+                </td>
+                <td v-for="group in happy">{{ group }}</td>
+            </tr>
+        </table>
         <table id="dailyScheduleTable">
             <tr>
                 <td colspan="2">
@@ -44,7 +52,7 @@
         mounted() {
             this.date = new Date();
         },
-        props: ['datepickerDate'],
+        props: ['datepickerDate', 'happy'],
         data: function () {
             return {
                 date: null

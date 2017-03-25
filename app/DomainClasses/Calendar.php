@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 class Calendar extends Model
 {
-    public static function fromDate($date)
+    public static function IdfromDate($date)
     {
         return DB::table('calendars')
             ->where('date', '=', $date)

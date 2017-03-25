@@ -5,15 +5,23 @@
                 <tr>
                     <td>
                         <button type="button"
-                                id="showSchedule"
+                                id="showTeacherSchedule"
                                 v-on:click="showSchedule();"
                                 class="btn btn-primary">
-                            Показать расписание
+                            Расписание
+                        </button>
+                    </td>
+                    <td>
+                        <button type="button"
+                                id="showTeacherDisciplines"
+                                v-on:click="showDisciplines();"
+                                class="btn btn-primary">
+                            Дисциплины
                         </button>
                     </td>
                 </tr>
                 <tr>
-                    <td>
+                    <td colspan="2" id="teacherSelectorTd">
                         <div class="dropdown dropdown-menu-right" id="teacherSelector">
                             <button class="btn btn-default dropdown-toggle" type="button" id="teacher" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
                                 <span v-if="selectedTeacher == null">Выберите преподавателя:</span>
@@ -39,6 +47,12 @@
                                 @close="showModalResult = false">
         </teacher-schedule-modal>
 
+        <teacher-disciplines-modal v-if="showModalDisciplinesResult"
+                                :selectedTeacher="selectedTeacher"
+                                :disciplinesList="disciplinesList"
+                                @close="showModalDisciplinesResult = false">
+        </teacher-disciplines-modal>
+
 
     </div>
 </template>
@@ -54,7 +68,9 @@
             return {
                 schedule: null,
                 selectedTeacher: null,
-                showModalResult: false
+                showModalResult: false,
+                showModalDisciplinesResult: false,
+                disciplinesList: null
             }
         },
         components: {
@@ -65,13 +81,29 @@
                 this.selectedTeacher = teacher;
             },
             showSchedule() {
-                axios.get('/api/api?action=teacherSchedule&teacherId=' +
+                axios.get('./api/api?action=teacherSchedule&teacherId=' +
                     this.selectedTeacher.id)
                     .then(response => {
                             this.schedule = response.data;
                             this.showModalResult = true;
                         }
                     );
+            },
+            showDisciplines() {
+                axios.get('./api/api?action=teacherDisciplines&teacherId=' +
+                    this.selectedTeacher.id)
+                    .then(response => {
+                        let data = response.data;
+                        let otchetnost = ["-", "Зачёт",  "Экзамен" ,"Зачёт + Экзамен" , "Зачёт с оценкой"];
+
+                        for(let i = 0; i < data.disciplines.length; i++) {
+                            data.disciplines[i].attestation = otchetnost[data.disciplines[i].attestation];
+                        }
+
+                        this.disciplinesList = data;
+
+                        this.showModalDisciplinesResult = true;
+                    });
             }
         }
     }

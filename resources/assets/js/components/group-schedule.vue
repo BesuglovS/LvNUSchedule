@@ -8,7 +8,7 @@
                                 id="showSchedule"
                                 v-on:click="showSchedule();"
                                 class="btn btn-primary">
-                            Показать расписание
+                            Расписание группы
                         </button>
                     </td>
                 </tr>
@@ -36,6 +36,16 @@
                         </div>
                     </td>
                 </tr>
+                <tr>
+                    <td colspan="2">
+                        <button type="button"
+                                id="showGroupDisciplines"
+                                v-on:click="showGroupDisciplines();"
+                                class="btn btn-primary">
+                            Дисциплины группы
+                        </button>
+                    </td>
+                </tr>
             </table>
         </div>
 
@@ -51,6 +61,12 @@
                @close="showSimpleModal = false">
             <h3>Дату можно выбрать слева</h3>
         </modal>
+
+        <student-group-disciplines-modal v-if="showDisciplinesModal"
+                              :selectedGroup="selectedGroup"
+                              :groupDisciplines="groupDisciplines"
+                              @close="showDisciplinesModal = false">
+        </student-group-disciplines-modal>
     </div>
 </template>
 
@@ -71,14 +87,17 @@
             return {
                 lessons: null,
                 selectedGroup: null,
+                groupDisciplines: null,
                 showModalResult: false,
-                showSimpleModal: false
+                showSimpleModal: false,
+                showDisciplinesModal: false
             }
         },
         components: {
             Datepicker,
             "daily-schedule-modal": require('./daily-schedule-modal.vue'),
-            "modal": require('./modal.vue')
+            "modal": require('./modal.vue'),
+            "student-group-disciplines-modal": require('./student-group-disciplines-modal.vue'),
         },
         methods: {
             groupChosen (group) {
@@ -87,7 +106,7 @@
             showSchedule() {
                 var dt = moment(this.datepickerDate);
                 var dateString = dt.format('YYYY-MM-DD');
-                axios.get('/api/api?action=dailySchedule&groupId=' +
+                axios.get('./api/api?action=dailySchedule&groupId=' +
                     this.selectedGroup.id + '&date=' + dateString)
                     .then(response => {
                         this.lessons = response.data;
@@ -97,6 +116,22 @@
             },
             showsimplemodal() {
                 this.showSimpleModal = true;
+            },
+            showGroupDisciplines() {
+                axios.get('./api/api?action=groupDisciplines&groupId=' +
+                    this.selectedGroup.id)
+                    .then(response => {
+                        let data = response.data;
+                        let otchetnost = ["-", "Зачёт",  "Экзамен" ,"Зачёт + Экзамен" , "Зачёт с оценкой"];
+
+                        for(let i = 0; i < data.length; i++) {
+                            data[i].attestation = otchetnost[data[i].attestation];
+                        }
+
+                        this.groupDisciplines = data;
+
+                        this.showDisciplinesModal = true;
+                    });
             }
         }
     }

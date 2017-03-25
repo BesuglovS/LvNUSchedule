@@ -2,6 +2,7 @@
 
 namespace App\DomainClasses;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -142,6 +143,45 @@ class Lesson extends Model
             ->orderBy('rings.time')
             ->get();
     }
+
+    public static function GetMonthStatByTfdId($id)
+    {
+        $result = array();
+
+        $ids = array();
+        $ids[] = $id;
+        $tfdLessons = Lesson::GetTFDLessonsQuery($ids)->get();
+
+        $result["count"] = count($tfdLessons);
+
+        $tfdLessons->map(function ($lesson) use (&$result) {
+            $lessonDate = Carbon::createFromFormat('Y-m-d', $lesson->date);
+            $month = $lessonDate->month;
+
+            if (!array_key_exists($month, $result))
+            {
+                $result[$month] = 2;
+            }
+            else
+            {
+                $result[$month] = $result[$month] + 2;
+            }
+        });
+
+        return $result;
+    }
+
+    public static function GetScheduleHoursByTfdId($tfdId)
+    {
+        $lessons = DB::table('lessons')
+            ->where('lessons.state', '=', 1)
+            ->where('discipline_teacher_id', '=', $tfdId)
+            ->count();
+
+        return $lessons*2;
+    }
+
+
 
     public function discipline_teacher()
     {

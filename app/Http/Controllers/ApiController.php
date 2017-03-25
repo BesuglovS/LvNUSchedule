@@ -581,22 +581,9 @@ class ApiController extends Controller
 
         $action = $input["action"];
 
-        if (!(($action == "list") ||
-            ($action == "groupsBundle") ||
-            ($action == "bundle") ||
-            ($action == "update") ||
-            ($action == "dailySchedule") ||
-            ($action == "groupExams") ||
-            ($action == "weekSchedule") ||
-            ($action == "groupSchedule") ||
-            ($action == "teacherWeekSchedule") ||
-            ($action == "teacherSchedule") ||
-            ($action == "dailyBuildingSchedule") ||
-            ($action == "dailyBuildingLessons") ||
-            ($action == "dailyBuildingAuditoriumEvents") ||
-            // Site requests
-            ($action == "mainPageData")
-        ))
+        $actions = ["list", "groupsBundle", "bundle", "update", "dailySchedule", "groupExams", "weekSchedule", "groupSchedule", "teacherWeekSchedule", "teacherSchedule", "teacherDisciplines", "groupDisciplines","teacherDisciplines", "dailyBuildingSchedule", "dailyBuildingLessons", "dailyBuildingAuditoriumEvents", "mainPageData"];
+
+        if (!in_array($action, $actions))
         {
             return array("error" => "Неизвестное действие (action)");
         }
@@ -666,6 +653,8 @@ class ApiController extends Controller
             case "groupExams":                      return $this->GroupExams($input);
             case "teacherWeekSchedule":             return $this->TeacherWeekSchedule($input);
             case "teacherSchedule":                 return $this->TeacherSchedule($input);
+            case "teacherDisciplines":              return $this->TeacherDisciplines($input);
+            case "groupDisciplines":                return $this->GroupDisciplines($input);
             case "dailyBuildingSchedule":           return $this->DailyBuildingSchedule($input);
             case "dailyBuildingLessons":            return $this->DailyBuildingLessons($input);
             case "dailyBuildingAuditoriumEvents":   return $this->DailyBuildingAuditoriumEvents($input);
@@ -688,7 +677,7 @@ class ApiController extends Controller
 
         $groupDisciplineIds = Discipline::IdsFromGroupId($groupId);
         $disciplineTeacherIds = Discipline_Teacher::IdsFromDisciplineIds($groupDisciplineIds);
-        $calendarId = Calendar::fromDate($date);
+        $calendarId = Calendar::IdfromDate($date);
 
         return Lesson::GetDailyTFDLessons($disciplineTeacherIds, $calendarId);
     }
@@ -982,19 +971,71 @@ class ApiController extends Controller
         $result["mainGroups"] = StudentGroup::mainStudentGroups();
         $result["teacherList"] = Teacher::IdAndFioList();
         $result["buildingsList"] = Building::all();
+        $result["happy"] = $this->GetHappy();
+
+        return $result;
+    }
+
+    private function GetHappy()
+    {
+        $result = array();
+
+        $studentList = Student::GetHappy();
+
+        for ($i = 0; $i < count($studentList); $i++) {
+            $studentId =  $studentList[$i]->id;
+
+            $groupNames = DB::table('student_student_group')
+                ->where('student_id', '=', $studentId)
+                ->join('student_groups', 'student_group_id', '=', 'student_groups.id')
+                ->select('student_groups.name')
+                ->get()
+                ->map(function($item) { return $item->name;})
+                ->toArray();
+
+            array_filter($groupNames, function($item) {
+                if (!((strpos($item, '-') !== false) ||
+                    (strpos($item, '|') !== false) ||
+                    (strpos($item, '+') !== false)))
+                {
+                    return true;
+                } else {
+                    return false;
+                }
+            });
+
+            if (count($groupNames) > 0)
+            {
+                $result[] = $groupNames[0];
+            }
+        }
+
+        sort($result);
 
         return $result;
     }
 
     private function DailyBuildingSchedule($input)
     {
-        if ((!isset($input['buildingId'])) || (!isset($input['calendarId'])))
+        if ((!isset($input['buildingId'])) || (!isset($input['date'])))
         {
-            return array("error" => "buildingId и calendarId обязательные параметры");
+            return array("error" => "buildingId и date обязательные параметры");
         }
 
-        $calendarId = $input["calendarId"];
+        $date = $input["date"];
         $buildingId = $input["buildingId"];
+
+        $calendarId = DB::table('calendars')
+            ->where('date', '=', $date)
+            ->select('id')
+            ->get()
+            ->map(function($item) { return $item->id;});
+
+        if ($calendarId->isEmpty()) {
+            return array("error" => "Дата date не найдена в днях семестра");
+        } else {
+            $calendarId =  $calendarId[0];
+        }
 
         $result = array();
         $result["table"] = array();
@@ -1106,5 +1147,29 @@ class ApiController extends Controller
         $buildingId = $input["buildingId"];
 
         return AuditoriumEvent::GetDailyBuildingAuditoriumEvents($calendarId, $buildingId);
+    }
+
+    private function TeacherDisciplines($input)
+    {
+        if (!isset($input['teacherId']))
+        {
+            return array("error" => "teacherId обязательный параметр");
+        }
+
+        $teacherId = $input["teacherId"];
+
+        return Discipline_Teacher::DisciplineListFromTeacherIdWithStat($teacherId);
+    }
+
+    private function GroupDisciplines($input)
+    {
+        if (!isset($input['groupId']))
+        {
+            return array("error" => "groupId обязательный параметр");
+        }
+
+        $groupId = $input["groupId"];
+
+        return Discipline_Teacher::DisciplineListFromGroupIdWithStat($groupId);
     }
 }

@@ -14,7 +14,7 @@ require('./bootstrap');
  */
 
 Vue.component('header-section', require('./components/header-section.vue'));
-Vue.component('daily-schedule', require('./components/daily-schedule.vue'));
+Vue.component('group-schedule', require('./components/group-schedule.vue'));
 Vue.component('daily-schedule-modal', require('./components/daily-schedule-modal.vue'));
 Vue.component('teacher-schedule', require('./components/teacher-schedule.vue'));
 Vue.component('teacher-schedule-modal', require('./components/teacher-schedule-modal.vue'));
@@ -23,17 +23,23 @@ Vue.component('building-auditoriums-modal', require('./components/buildings-audi
 Vue.component('building-auditoriums-modal', require('./components/buildings-auditoriums-modal.vue'));
 Vue.component('date-picker', require('./components/date-picker.vue'));
 Vue.component('modal', require('./components/modal.vue'));
+Vue.component('teacher-disciplines-modal', require('./components/teacher-disciplines-modal.vue'));
+Vue.component('student-group-disciplines-modal', require('./components/student-group-disciplines-modal.vue'));
+Vue.component('group-session-schedule', require('./components/group-session-schedule.vue'));
+Vue.component('group-session-schedule-modal', require('./components/group-session-schedule-modal.vue'));
+
 
 const app = new Vue({
     el: '#app',
     created: function() {
         this.datepickerDate = new Date();
-        axios.get('/api/api?action=mainPageData')
+        axios.get('./api/api?action=mainPageData')
             .then(response => {
                 this.weekNumber = response.data.currentWeek;
                 this.mainGroups = response.data.mainGroups;
-                this.teacherList= response.data.teacherList;
-                this.buildingsList= response.data.buildingsList;
+                this.teacherList = response.data.teacherList;
+                this.buildingsList = response.data.buildingsList;
+                this.happy = response.data.happy;
             }
         );
     },
@@ -43,26 +49,22 @@ const app = new Vue({
             weekNumber: '',
             mainGroups: null,
             teacherList: null,
-            buildingsList: null
+            buildingsList: null,
+            happy: null
         }
     },
     template: `
     <div> 
-        <div class="container">
-            <div class="panel panel-default">
-                <div class="row vertical-align">
-                    <header-section :weekNumber="weekNumber"></header-section>
-                </div>
-            </div>
-        </div>   
+        <header-section :weekNumber="weekNumber"></header-section>       
         
         <div class="container">
             <div class="panel panel-default">
                 <div class="row">
-                    <date-picker @dateChanged="newDate" :datepickerDate="datepickerDate"></date-picker>                    
-                    <daily-schedule :datepickerDate="datepickerDate" :mainGroups="mainGroups"></daily-schedule>                    
+                    <date-picker @dateChanged="newDate" :datepickerDate="datepickerDate" :happy="happy"></date-picker>
+                    <group-schedule :datepickerDate="datepickerDate" :mainGroups="mainGroups"></group-schedule>                    
                     <teacher-schedule :teacherList="teacherList"></teacher-schedule>
                     <building-auditoriums :datepickerDate="datepickerDate" :buildingsList="buildingsList"></building-auditoriums>
+                    <group-session-schedule :mainGroups="mainGroups"></group-session-schedule>
                 </div>
             </div>    
         </div>

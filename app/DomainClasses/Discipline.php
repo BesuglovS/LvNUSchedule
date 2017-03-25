@@ -27,6 +27,22 @@ class Discipline extends Model
         return $this->hasMany(Exam::class);
     }
 
+    public static function ListFormIds($IdsList) {
+        return DB::table('disciplines')
+            ->whereIn('id', $IdsList)
+            ->get();
+    }
+
+    public static function ListFormIdsWithGroupNames($IdsList) {
+        return DB::table('disciplines')
+            ->whereIn('disciplines.id', $IdsList)
+            ->join('student_groups', 'student_group_id', '=', 'student_groups.id')
+            ->select('disciplines.*', 'student_groups.name as group_name')->whereIn('disciplines.id', $IdsList)
+            ->join('student_groups', 'student_group_id', '=', 'student_groups.id')
+            ->select('disciplines.*', 'student_groups.name as group_name')
+            ->get();
+    }
+
     public static function IdsFromGroupId($groupId) {
         $groupIds = StudentGroup::GetGroupsOfStudentFromGroup($groupId);
         return static::IdsFromGroupIdsStraight($groupIds);

@@ -9,6 +9,8 @@ class Exam extends Model
 {
     public static function FromGroupId($groupId)
     {
+        $emptyDate = "01.01.2020 0:00";
+
         $groupDisciplineIds = Discipline::IdsFromGroupId($groupId);
 
         $exams =  DB::table('exams')
@@ -24,8 +26,16 @@ class Exam extends Model
                 'aud1.name as cons_aud', 'aud2.name as exam_aud')
             ->get();
 
-        $exams->map(function ($exam) {
+        $exams->map(function ($exam) use ($emptyDate) {
             $exam->teacher_fio = Discipline_Teacher::TeacherFioFromDisciplineId($exam->discipline_id);
+
+            if ($exam->consultation_datetime == $emptyDate) {
+                $exam->consultation_datetime = null;
+            }
+
+            if ($exam->exam_datetime == $emptyDate) {
+                $exam->exam_datetime = null;
+            }
         });
 
         return $exams;

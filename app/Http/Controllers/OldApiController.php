@@ -130,7 +130,7 @@ class OldApiController extends Controller
 
         $groupDisciplineIds = Discipline::IdsFromGroupId($groupId);
         $disciplineTeacherIds = Discipline_Teacher::IdsFromDisciplineIds($groupDisciplineIds);
-        $calendarId = Calendar::fromDate($date);
+        $calendarId = Calendar::IdfromDate($date);
 
         $lessonsList =  Lesson::GetDailyTFDLessons($disciplineTeacherIds, $calendarId);
 

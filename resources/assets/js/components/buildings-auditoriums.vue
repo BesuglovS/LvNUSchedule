@@ -85,8 +85,9 @@
                 this.selectedBuilding = building;
             },
             showBuilding() {
-                axios.get('/api/api?action=dailyBuildingSchedule&calendarId=42&buildingId=' +
-                    this.selectedBuilding.id)
+                axios.get('./api/api?action=dailyBuildingSchedule' +
+                    '&date=' + moment(this.datepickerDate).format('YYYY-MM-DD') +
+                    '&buildingId=' + this.selectedBuilding.id)
                     .then(response => {
                             this.schedule = response.data;
                             this.showModalResult = true;
